@@ -23,6 +23,13 @@ interface Customer {
   notes?: string | null;
 }
 
+interface SuggestedName {
+  id: string;
+  mobile_number: string;
+  suggested_name: string;
+  created_at: string;
+  updated_at: string;
+}
 interface UserDashboardProps {
   userType: string;
   username: string;
@@ -34,29 +41,67 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [suggestedName, setSuggestedName] = useState("");
   const [tempName, setTempName] = useState("");
+  const [loadingSuggestedName, setLoadingSuggestedName] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchCustomerData();
-    loadSuggestedName();
+    fetchSuggestedName();
   }, [userType, username]);
 
-  const loadSuggestedName = () => {
-    const saved = localStorage.getItem(`suggested-name-${username}`);
-    if (saved) {
-      setSuggestedName(saved);
+  const fetchSuggestedName = async () => {
+    if (userType !== "single") {
+      setLoadingSuggestedName(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('suggested_names')
+        .select('*')
+        .eq('mobile_number', username)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      if (data) {
+        setSuggestedName(data.suggested_name);
+      }
+    } catch (error) {
+      console.error('Error fetching suggested name:', error);
+    } finally {
+      setLoadingSuggestedName(false);
     }
   };
 
-  const saveSuggestedName = () => {
-    if (tempName.trim()) {
-      localStorage.setItem(`suggested-name-${username}`, tempName.trim());
+  const saveSuggestedName = async () => {
+    if (!tempName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('suggested_names')
+        .upsert({
+          mobile_number: username,
+          suggested_name: tempName.trim()
+        }, {
+          onConflict: 'mobile_number'
+        });
+
+      if (error) throw error;
+
       setSuggestedName(tempName.trim());
       setIsEditingName(false);
       setTempName("");
       toast({
         title: "تم الحفظ",
         description: "تم حفظ الاسم المقترح بنجاح",
+      });
+    } catch (error) {
+      console.error('Error saving suggested name:', error);
+      toast({
+        title: "خطأ",
+        description: `فشل في حفظ الاسم المقترح: ${error.message}`,
+        variant: "destructive",
       });
     }
   };
@@ -186,58 +231,64 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
         </h2>
         
         {/* Suggested Name Section */}
-        <div className="mt-4 space-y-2">
-          {!isEditingName ? (
-            <div className="flex items-center justify-center gap-2">
-              <div className="text-lg text-muted-foreground">
-                {suggestedName ? (
-                  <span>الاسم المقترح: <span className="text-blue-600 font-semibold">{suggestedName}</span></span>
-                ) : (
-                  <span>لا يوجد اسم مقترح</span>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={startEditing}
-                className="hover-scale"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2 max-w-md mx-auto">
-              <Input
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                placeholder="أدخل الاسم المقترح..."
-                className="text-center"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    saveSuggestedName();
-                  }
-                }}
-                autoFocus
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={saveSuggestedName}
-                className="hover-scale text-green-600"
-              >
-                <Save className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={cancelEditing}
-                className="hover-scale text-red-600"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
+        {userType === "single" && (
+          <div className="mt-4 space-y-2">
+            {loadingSuggestedName ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mx-auto"></div>
+            ) : (
+              !isEditingName ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="text-lg text-muted-foreground">
+                    {suggestedName ? (
+                      <span>الاسم المقترح: <span className="text-blue-600 font-semibold">{suggestedName}</span></span>
+                    ) : (
+                      <span>لا يوجد اسم مقترح</span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startEditing}
+                    className="hover-scale"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 max-w-md mx-auto">
+                  <Input
+                    value={tempName}
+                    onChange={(e) => setTempName(e.target.value)}
+                    placeholder="أدخل الاسم المقترح..."
+                    className="text-center"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        saveSuggestedName();
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={saveSuggestedName}
+                    className="hover-scale text-green-600"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={cancelEditing}
+                    className="hover-scale text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )
+            )}
+          </div>
+        )}
         
         <p className="text-muted-foreground text-lg">
           {userType === "multiple" ? "بيانات خطوطك" : "بيانات خطك"}

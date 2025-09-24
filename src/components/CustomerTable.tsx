@@ -26,6 +26,13 @@ interface Customer {
   updated_at?: string;
 }
 
+interface SuggestedName {
+  id: string;
+  mobile_number: string;
+  suggested_name: string;
+  created_at: string;
+  updated_at: string;
+}
 interface CustomerTableProps {
   onAddCustomer: () => void;
   onAddBulkCustomers: () => void;
@@ -35,6 +42,7 @@ interface CustomerTableProps {
 
 export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, onEditCustomer }: CustomerTableProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suggestedNames, setSuggestedNames] = useState<SuggestedName[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingNote, setEditingNote] = useState<{ id: number; note: string } | null>(null);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -42,6 +50,7 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
 
   useEffect(() => {
     fetchCustomers();
+    fetchSuggestedNames();
   }, []);
 
   const fetchCustomers = async () => {
@@ -67,6 +76,23 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
     }
   };
 
+  const fetchSuggestedNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suggested_names')
+        .select('*');
+
+      if (error) throw error;
+      setSuggestedNames(data || []);
+    } catch (error) {
+      console.error('Error fetching suggested names:', error);
+    }
+  };
+
+  const getSuggestedName = (mobileNumber: number): string | null => {
+    const suggested = suggestedNames.find(s => s.mobile_number === String(mobileNumber));
+    return suggested ? suggested.suggested_name : null;
+  };
   const deleteCustomer = async (id: number) => {
     try {
       const { error } = await supabase
@@ -266,6 +292,12 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
                     <div className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent hover:from-green-600 hover:to-blue-600 transition-all duration-300 cursor-pointer transform hover:scale-105">
                       {customer.customer_name || 'غير محدد'}
                     </div>
+                    {/* عرض الاسم المقترح تحت الاسم الأصلي */}
+                    {getSuggestedName(customer.mobile_number) && (
+                      <div className="text-xs text-blue-500 mt-1 font-medium">
+                        الاسم المقترح: {getSuggestedName(customer.mobile_number)}
+                      </div>
+                    )}
                     <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-green-600 group-hover:w-full transition-all duration-300"></div>
                   </div>
                 </TableCell>

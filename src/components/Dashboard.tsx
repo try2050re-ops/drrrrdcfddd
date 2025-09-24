@@ -3,8 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Users, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
+import { Users, DollarSign, CheckCircle, AlertCircle, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -13,6 +15,12 @@ interface DashboardStats {
   totalRevenue: number;
 }
 
+interface AdminNote {
+  id: string;
+  note_content: string;
+  created_at: string;
+  updated_at: string;
+}
 export const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
     totalCustomers: 0,
@@ -21,13 +29,15 @@ export const Dashboard = () => {
     totalRevenue: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [notes, setNotes] = useState("");
-  const [savingNotes, setSavingNotes] = useState(false);
+  const [adminNotes, setAdminNotes] = useState<AdminNote[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchStats();
-    loadNotes();
+    fetchAdminNotes();
   }, []);
 
   const fetchStats = async () => {
@@ -61,31 +71,80 @@ export const Dashboard = () => {
     }
   };
 
-  const loadNotes = () => {
-    const savedNotes = localStorage.getItem('dashboard-notes');
-    if (savedNotes) {
-      setNotes(savedNotes);
-    }
-  };
-
-  const saveNotes = async () => {
-    setSavingNotes(true);
+  const fetchAdminNotes = async () => {
     try {
-      localStorage.setItem('dashboard-notes', notes);
-      toast({
-        title: "تم الحفظ",
-        description: "تم حفظ الملاحظات بنجاح",
-      });
+      const { data, error } = await supabase
+        .from('admin_notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAdminNotes(data || []);
     } catch (error) {
+      console.error('Error fetching admin notes:', error);
       toast({
         title: "خطأ",
-        description: "فشل في حفظ الملاحظات",
+        description: `فشل في تحميل الملاحظات: ${error.message}`,
         variant: "destructive",
       });
     } finally {
-      setSavingNotes(false);
+      setLoadingNotes(false);
     }
   };
+
+  const addNote = async () => {
+    if (!newNote.trim()) return;
+    
+    setSavingNote(true);
+    try {
+      const { error } = await supabase
+        .from('admin_notes')
+        .insert([{ note_content: newNote.trim() }]);
+
+      if (error) throw error;
+
+      setNewNote("");
+      fetchAdminNotes();
+      toast({
+        title: "تم بنجاح",
+        description: "تم إضافة الملاحظة بنجاح",
+      });
+    } catch (error) {
+      console.error('Error adding note:', error);
+      toast({
+        title: "خطأ",
+        description: `فشل في إضافة الملاحظة: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const deleteNote = async (noteId: string) => {
+    try {
+      const { error } = await supabase
+        .from('admin_notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      fetchAdminNotes();
+      toast({
+        title: "تم بنجاح",
+        description: "تم حذف الملاحظة بنجاح",
+      });
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast({
+        title: "خطأ",
+        description: `فشل في حذف الملاحظة: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const StatCard = ({ title, value, icon: Icon, className = "" }: {
     title: string;
     value: string | number;
@@ -159,23 +218,71 @@ export const Dashboard = () => {
           <CardTitle className="text-center">ملاحظات المدير</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="اكتب ملاحظاتك هنا..."
-            className="min-h-[120px] text-right bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400"
-          />
-          <div className="flex justify-center">
-            <Button
-              onClick={saveNotes}
-              disabled={savingNotes}
-              className="hover-scale bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700"
-            >
-              {savingNotes ? 'جاري الحفظ...' : 'حفظ الملاحظات'}
-            </Button>
+          {/* إضافة ملاحظة جديدة */}
+          <div className="space-y-2">
+            <Label htmlFor="new-note">إضافة ملاحظة جديدة</Label>
+            <div className="flex gap-2">
+              <Textarea
+                id="new-note"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="اكتب ملاحظتك هنا..."
+                className="flex-1 text-right bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400"
+                rows={3}
+              />
+              <Button
+                onClick={addNote}
+                disabled={savingNote || !newNote.trim()}
+                className="hover-scale bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* عرض الملاحظات */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-lg">الملاحظات المحفوظة</h4>
+            {loadingNotes ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto"></div>
+              </div>
+            ) : adminNotes.length === 0 ? (
+              <p className="text-gray-400 text-center py-4">لا توجد ملاحظات محفوظة</p>
+            ) : (
+              adminNotes.map((note) => (
+                <Card key={note.id} className="bg-gray-800/50 border-gray-600">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1">
+                        <p className="text-white text-right mb-2">{note.note_content}</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(note.created_at).toLocaleDateString('ar-EG', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteNote(note.id)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="animate-scale-in bg-black/80 text-white border-gray-600">
           <CardHeader>

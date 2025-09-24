@@ -101,6 +101,51 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_notes: {
+        Row: {
+          id: string
+          note_content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          note_content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          note_content?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      suggested_names: {
+        Row: {
+          id: string
+          mobile_number: string
+          suggested_name: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          mobile_number: string
+          suggested_name: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          mobile_number?: string
+          suggested_name?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
